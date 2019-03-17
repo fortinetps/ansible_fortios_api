@@ -364,8 +364,11 @@ class API(object):
             message, changed, failed = self._process_response()
         else:
             message = "Check Mode"
-            changed = not self._configurations_match(
-                self._fortigate_original_config, self._update_config)
+            if self._update_config:
+                changed = not self._configurations_match(
+                    self._fortigate_original_config, self._update_config)
+            else:
+                changed = False
             failed = False
 
         self._module.exit_json(msg=message, changed=changed, failed=failed,
@@ -373,12 +376,13 @@ class API(object):
 
     def _execute_config_changes(self):
         self._get_current_configuration()
-        if isinstance(self._fortigate_current_config, list):
-            self._delete_unused_objects()
-            self._update_objects()
-            self._create_new_objects()
-        else:
-            self._update_single_object_endpoint()
+        if self._update_config: # to check if user provides empty _update_config (len=0)
+            if isinstance(self._fortigate_current_config, list):
+                self._delete_unused_objects()
+                self._update_objects()
+                self._create_new_objects()
+            else:
+                self._update_single_object_endpoint()
 
     def _get_current_configuration(self):
         try:
@@ -518,7 +522,7 @@ class API(object):
 
         if self._update_config and isinstance(self._update_config, list):
             self._update_config = self._update_config[0]
-        else:
+        else: 
             self._update_config = self._default_object_configuration
 
         if not self._check_mode:
