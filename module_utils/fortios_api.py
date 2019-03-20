@@ -50,12 +50,12 @@ fortios_api_argument_spec = dict(
         params=dict(
             fortigate_ip=dict(required=True),
             fortigate_username=dict(type='str', required=True),
-            fortigate_password=dict(type='str', required=True, no_log=True),
+            fortigate_password=dict(type='str', required=True, no_log=True), # this no_log doesn't work, most likely because it is nested, and bug in Ansible
             port=dict(type='int'),
             disable_warnings=dict(type='bool', default=False),
             ssh_keyfile=dict(type='path'),
             verify=dict(type='bool', default=True),
-        ), type='dict'),
+        ), type='dict', no_log=True), # add this no_log to hide fortigate_password for now
     vdom=dict(type='str', default="root"),
     print_current_config=dict(type='bool'),
     permanent_objects=dict(type='list'),
@@ -809,7 +809,13 @@ class API(object):
                 if not self._lists_match(current_val, val):
                     return False
 
-            elif val != current_val and key not in self._match_ignore_params:
+# this is a temporary fix, which ansible is always trying to using varialb as string in the place where needs integer.
+# the current value from device may hold integer value
+# but the update value from ansible yml variable always hold string value
+# i am simply convert int (assume) to str to workaround the problem
+# this fix may have side affects, could cause other problems, i haven't tested throughly
+#            elif val != current_val and key not in self._match_ignore_params:
+            elif str(val) != str(current_val) and key not in self._match_ignore_params:
                 return False
 
         return True
