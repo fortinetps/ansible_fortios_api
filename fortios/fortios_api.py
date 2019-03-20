@@ -148,6 +148,38 @@ msg:
     sample: "Configuration updated."
 '''
 
+EXAMPLES = '''
+  - name: Gather system ha checksums
+    fortios_api:
+      endpoint_information:
+        endpoint: monitor/system/ha-checksums/select
+        list_identifier:
+        object_identifier:
+        permanent_objects:
+      print_current_config: true
+      conn_params:
+          fortigate_ip: "{{ host }}"
+          fortigate_username: "{{ username }}"
+          fortigate_password: "{{ password }}"
+          verify: false
+    register: FOS_API_HA_CHECKSUMS
+
+  - name: Gather system status
+    fortios_api:
+      endpoint_information:
+        endpoint: monitor/system/status/select
+        list_identifier:
+        object_identifier:
+        permanent_objects:
+      print_current_config: true
+      conn_params:
+          fortigate_ip: "{{ host }}"
+          fortigate_username: "{{ username }}"
+          fortigate_password: "{{ password }}"
+          verify: false
+    register: FOS_SYSTEM_STATUS
+'''
+
 from ansible.module_utils.fortios_api import API
 
 interface_api_args = {

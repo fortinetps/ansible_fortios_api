@@ -157,7 +157,8 @@ class API(object):
                 "Authentication with FortiOS device failed. Check your username/password.")
 
         self._minimum_object_params = self._params.get('default_object', [])
-        self._default_object_configuration = self._get_default_object()
+        if self._endpoint.startswith('cmdb'):
+            self._default_object_configuration = self._get_default_object()
         self._object_identifier = self._api_info.get('object_identifier')
         self._permanent_object_ids = self._get_permanent_object_identifiers()
         self._ignore_object_ids = self._get_ignore_object_identifiers()
@@ -183,8 +184,15 @@ class API(object):
         self._permanent_object_ids_to_reset = []
 
         self._list_identifier = self._api_info['list_identifier']
-        self._argument_spec = {self._list_identifier: dict(
-            type='list', options=self._get_argument_spec())}
+        if self._endpoint.startswith('cmdb'):
+            self._argument_spec = {self._list_identifier: dict(
+                type='list', options=self._get_argument_spec())}
+        else:   # for Monitor API call (not CMDB API call), not need to verify with schema
+            if self._list_identifier:
+                self._argument_spec = {self._list_identifier: dict(
+                    type='list', options=None)}
+            else:   # Some Monitor API call don't even have list_identifier
+                self._argument_spec = {}
         self._argument_spec.update(fortios_api_argument_spec)
 
         self._module = AnsibleModule(self._argument_spec, supports_check_mode=True)
@@ -193,6 +201,19 @@ class API(object):
         self._full_config = self._module.params.get('full_config')
         self._delete_objects = self._module.params.get('delete_objects')
         self._check_mode = self._module.check_mode or self._print_current_config
+
+    def perform_action_on_endpoint(self, method="post", changed=False, api_request_data=None):   # for FortiOS REST Monitor API
+        response = self._create_raw_data(path=self._endpoint, data=api_request_data)
+        failures = {}
+        if response.get('http_status'):
+            if response['http_status'] != 200:
+                failures[self._endpoint] = self.http_status_codes[response['http_status']]
+            if failures:
+                self.fail("Failed to create objects:\n ", msg_args=failures)
+
+        message = "Action performed"
+        failed = False
+        self._module.exit_json(msg=message, changed=changed, failed=failed, response=response)
 
     def apply_configuration_to_endpoint(self):
         self._execute_config_changes()
@@ -203,12 +224,14 @@ class API(object):
             if self._update_config:
                 changed = not self._configurations_match(
                     self._fortigate_original_config, self._update_config)
-            else:
+                failed = False
+                self._module.exit_json(msg=message, changed=changed, failed=failed,
+                                       existing=self._fortigate_original_config, proposed=self._update_config, end_state=self._fortigate_current_config)
+            else:   # with _update_config is empty, exiting config/status is only thing we need, no need to return proposed config or end_state config
                 changed = False
-            failed = False
-
-        self._module.exit_json(msg=message, changed=changed, failed=failed,
-                               existing=self._fortigate_original_config, proposed=self._update_config, end_state=self._fortigate_current_config)
+                failed = False
+                self._module.exit_json(msg=message, changed=changed, failed=failed,
+                                       existing=self._fortigate_current_config)
 
     def _execute_config_changes(self):
         self._get_current_configuration()
@@ -222,23 +245,27 @@ class API(object):
 
     def _get_current_configuration(self):
         try:
-            self._fortigate_current_config = self._show(self._endpoint)['results']
+            if self._update_config: # to check if user provides empty _update_config (len=0)
+                self._fortigate_current_config = self._show(self._endpoint)['results']
+            else:   # with _update_config is empty, return all info from API call
+                self._fortigate_current_config = self._show(self._endpoint)
         except KeyError:
             self.fail("Failed to find any configuration at %s" %
                       self._endpoint)
 
-        if self._fortigate_original_config is None:
-            self._fortigate_original_config = deepcopy(self._fortigate_current_config)
-            if self._print_current_config:
-                file_name = self._endpoint.replace('/', '-') + '-CurrentConfig.json'
-                json.dump({"current": self._fortigate_current_config}, open(file_name, 'w+'), indent=4, sort_keys=True)
+        if self._update_config: # to check if user provides empty _update_config (len=0)
+            if self._fortigate_original_config is None:
+                self._fortigate_original_config = deepcopy(self._fortigate_current_config)
+                if self._print_current_config:
+                    file_name = self._endpoint.replace('/', '-') + '-CurrentConfig.json'
+                    json.dump({"current": self._fortigate_current_config}, open(file_name, 'w+'), indent=4, sort_keys=True)
 
-        if isinstance(self._fortigate_current_config, list):
-            try:
-                self._used_object_ids = [o[self._object_identifier] for o in self._update_config]
-                self._existing_object_ids = [o[self._object_identifier] for o in self._fortigate_current_config]
-            except KeyError:
-                self.fail("No or incorrect object identifier specified. List endpoints require an object identifier, typically name or id.")
+            if isinstance(self._fortigate_current_config, list):
+                try:
+                    self._used_object_ids = [o[self._object_identifier] for o in self._update_config]
+                    self._existing_object_ids = [o[self._object_identifier] for o in self._fortigate_current_config]
+                except KeyError:
+                    self.fail("No or incorrect object identifier specified. List endpoints require an object identifier, typically name or id.")
 
     def _delete_unused_objects(self):
         if not self._update_config and not self._check_mode and self._full_config:
@@ -410,6 +437,13 @@ class API(object):
                              verify=self._verify, proxies=self.proxies, params=params, json={'json': data})
 
     @connection_handler
+    def _post_raw_data(self, path, api='v2', params=None, data=None):
+        if isinstance(path, list):
+            path = '/'.join(path) + '/'
+        return requests.post(self._ip + '/api/' + api + '/' + path, headers=self.header, cookies=self.cookies,
+                             verify=self._verify, proxies=self.proxies, params=params, data=data)
+
+    @connection_handler
     def _delete(self, path, api='v2', params=None, data=None):
         if isinstance(path, list):
             path = '/'.join(path) + '/'
@@ -428,6 +462,10 @@ class API(object):
     @return_handler
     def _create(self, path, api='v2', params=None, data=None):
         return self._post(path, api=api, params=self._build_params(params), data=data).json()
+
+    @return_handler
+    def _create_raw_data(self, path, api='v2', params=None, data=None):
+        return self._post_raw_data(path, api=api, params=self._build_params(params), data=data).json()
 
     @return_handler
     def _remove(self, path, api='v2', params=None, data=None):
