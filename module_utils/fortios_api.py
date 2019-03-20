@@ -210,10 +210,7 @@ class API(object):
                 failures[self._endpoint] = self.http_status_codes[response['http_status']]
             if failures:
                 self.fail("Failed to create objects:\n ", msg_args=failures)
-
-        message = "Action performed"
-        failed = False
-        self._module.exit_json(msg=message, changed=changed, failed=failed, response=response)
+        return response
 
     def apply_configuration_to_endpoint(self):
         self._execute_config_changes()
