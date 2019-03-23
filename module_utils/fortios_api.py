@@ -216,6 +216,8 @@ class API(object):
         self._execute_config_changes()
         if not self._check_mode:
             message, changed, failed = self._process_response()
+            self._module.exit_json(msg=message, changed=changed, failed=failed,
+                                    existing=self._fortigate_original_config, proposed=self._update_config, end_state=self._fortigate_current_config)
         else:
             message = "Check Mode"
             if self._update_config:
