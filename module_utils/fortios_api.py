@@ -455,6 +455,10 @@ class API(object):
         return self._get(path, api=api, params=self._build_params(params)).json()
 
     @return_handler
+    def _show2(self, path, api='v2', params=None):
+        return self._get(path, api=api, params=self._build_params(params))
+
+    @return_handler
     def _edit(self, path, api='v2', params=None, data=None):
         return self._put(path, api=api, params=self._build_params(params), data=data).json()
 
