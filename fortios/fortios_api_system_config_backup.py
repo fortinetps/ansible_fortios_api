@@ -76,8 +76,10 @@ def main():
     forti_api = API(api_info=system_config_api_args)
     if forti_api._update_config and forti_api._update_config[0].get('filename'):
         config_file = forti_api._update_config[0]['filename']
-        parameters = {'destination': 'file',
-                  'scope': 'global'}
+        parameters = {
+            'destination': 'file',
+            'scope': 'global'
+        }
         response = forti_api._show2(forti_api._endpoint, params=parameters)
         if response.status_code != 200:
             message = "Configuration backup API call failed: " + response['reason']
