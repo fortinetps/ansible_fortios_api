@@ -63,10 +63,15 @@ result:
     type: dict
 '''
 
-from ansible.module_utils.fortios_api import API
 from base64 import b64encode
 import json
 import os
+import requests
+
+try:
+    from ansible.module_utils.fortios_api import API
+except ImportError as error:
+    from module_utils.fortios_api import API
 
 system_firmware_upgrade_api_args = {
     'endpoint': ["monitor", "system", "firmware", "upgrade"],
@@ -85,11 +90,19 @@ def main():
                 "source": "upload", 
                 "file_content": b64encode(open(firmware_file, 'rb').read()).decode('utf-8')
             }
-            response = forti_api.perform_action_on_endpoint(changed=True, api_request_data=json.dumps(firmware))
-            status = response['results']['status']
+            try:
+                response = forti_api.perform_action_on_endpoint(changed=True, api_request_data=json.dumps(firmware), timeout=600)
+                status = response['results']['status']
+            except requests.exceptions.Timeout as error:
+                forti_api._module.fail_json(msg="Firmware Upgrade Timeout: " + str(error), changed=False)
             if status == "success":
-                message = "Firmware restored successfully"
+                # try: 
+                    # message = "Firmware restored successfully"
                 forti_api._module.exit_json(msg="Firmware restored successfully", changed=True, failed=False, response=response)
+                # I encountered this issue occassionaly, the exit_json call might raise SystemExit exception for some reasons which I am not quite understand, below is part of the error message
+                # fatal: [dyao501e02]: FAILED! => {"changed": false, "module_stderr": "Exception SystemExit: SystemExit(1,) in <bound method API.__del__ of <ansible.module_utils.fortios_api.API object at 0x7f3453de9ed0>> ignored\n", "module_stdout": "\n{\"msg\": \"Firmware restored successfully\", \"failed\": false, \"changed\": true, \"response\": {\"status\": \"success\", \"name\": \"firmware\", \"results\": {\"status\": \"success\"}, \"http_method\"
+                # except SystemExit as error: # to bypass the SystemExit exception
+                #     pass
             else:   # status == "error"
                 message = "Firmware restore failed with error: " + response['results']['error']
                 forti_api._module.fail_json(msg=message, changed=False, response=response)

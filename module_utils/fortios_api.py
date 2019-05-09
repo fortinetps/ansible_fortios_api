@@ -77,9 +77,11 @@ def connection_handler(func):
                 try:
                     api.fail("Connection to API endpoint %s failed with status %s" % (
                         api._endpoint, api.response.status_code))
+                    raise
                 except AttributeError:
                     api.fail(
                         "Connection to API endpoint %s failed with no response." % api._endpoint)
+                    raise   # the action plugin is not happy with this 
         else:
             try:
                 return func(*args, **kwargs)
@@ -89,7 +91,7 @@ def connection_handler(func):
                         api._endpoint, api.response.status_code))
                 except AttributeError:
                     api._module = AnsibleModule(
-                        {}, bypass_checks=True, check_invalid_arguments=False)
+                        {}, bypass_checks=True)
                     api.fail("Failed to login to endpoint: %s" % e)
 
     return func_wrapper
@@ -101,9 +103,9 @@ def return_handler(func):
             return func(*args, **kwargs)
         except (ValueError, TypeError) as e:
             api = args[0]
-            failure_msg = "Empty response received from endpoint %s for API.%s"
+            failure_msg = "Empty response received from endpoint %s for API.%s with error %s"
             path = args[1]
-            api.fail(failure_msg % (path, func.__name__))
+            api.fail(failure_msg % (path, func.__name__, e))
 
     return return_wrapper
 
@@ -118,6 +120,7 @@ class API(object):
 
         self._fortigate_original_config = None
         self._fortigate_current_config = None
+        self._update_config = None
 
         self._params = _load_params()
         self._vdom = self._params.get('vdom', "root")
@@ -145,16 +148,6 @@ class API(object):
         self.proxies = self._params['conn_params'].get('proxies')
 
         self._ip = self._build_target_ip()
-        response = self._login()
-        self.cookies = response.cookies
-        self.header = self._set_csrf_header()
-
-        if not response.cookies:
-            self.fail(
-                "Authentication failed. Authentication attempts likely blocked temporarily.")
-        if "just_logged_in" in response.cookies:
-            self.fail(
-                "Authentication with FortiOS device failed. Check your username/password.")
 
         self._minimum_object_params = self._params.get('default_object', [])
         if self._endpoint.startswith('cmdb'):
@@ -162,20 +155,6 @@ class API(object):
         self._object_identifier = self._api_info.get('object_identifier')
         self._permanent_object_ids = self._get_permanent_object_identifiers()
         self._ignore_object_ids = self._get_ignore_object_identifiers()
-
-        self.http_status_codes = {
-            200: "Request Successful.",
-            400: "Request cannot be processed by API.",
-            401: "Login unsuccessful.",
-            403: "Account doesn't have access permissions.",
-            404: "Unable to find specified resource.",
-            405: "HTTP method not allowed for this resource.",
-            413: "Request can't be processed because entity is too large.",
-            424: "Failed dependency - one of: duplicate resource, missing required parameter, "
-                 "missing required attribute, or invalid attribute value.",
-            500: "Internal server error.",
-            501: "Not Implemented. Check that your endpoint is correct."
-        }
 
         self._object_map = []
         self._used_object_ids = []
@@ -196,14 +175,72 @@ class API(object):
         self._argument_spec.update(fortios_api_argument_spec)
 
         self._module = AnsibleModule(self._argument_spec, supports_check_mode=True)
+
+        response = self._login()
+        self.cookies = response.cookies
+        self.header = self._set_csrf_header()
+
+        if "loginpwd_change" in response.text:
+            self.fail(
+                "Authentication succeed. But password changed is required.")
+        if not self.header:
+            self.fail(
+                "Authentication with FortiOS device failed. Check your username/password.")
+        if not response.cookies:
+            self.fail(
+                "Authentication failed. Authentication attempts likely blocked temporarily.")
+        if "just_logged_in" in response.cookies:
+            self.fail(
+                "Authentication with FortiOS device failed. Check your username/password.")
+
+        # self._minimum_object_params = self._params.get('default_object', [])
+        # if self._endpoint.startswith('cmdb'):
+        #     self._default_object_configuration = self._get_default_object()
+        # self._object_identifier = self._api_info.get('object_identifier')
+        # self._permanent_object_ids = self._get_permanent_object_identifiers()
+        # self._ignore_object_ids = self._get_ignore_object_identifiers()
+
+        self.http_status_codes = {
+            200: "Request Successful.",
+            400: "Request cannot be processed by API.",
+            401: "Login unsuccessful.",
+            403: "Account doesn't have access permissions.",
+            404: "Unable to find specified resource.",
+            405: "HTTP method not allowed for this resource.",
+            413: "Request can't be processed because entity is too large.",
+            424: "Failed dependency - one of: duplicate resource, missing required parameter, "
+                 "missing required attribute, or invalid attribute value.",
+            500: "Internal server error.",
+            501: "Not Implemented. Check that your endpoint is correct."
+        }
+
+        # self._object_map = []
+        # self._used_object_ids = []
+        # self._existing_object_ids = []
+        # self._object_ids_to_update = []
+        # self._permanent_object_ids_to_reset = []
+
+        # self._list_identifier = self._api_info['list_identifier']
+        # if self._endpoint.startswith('cmdb'):
+        #     self._argument_spec = {self._list_identifier: dict(
+        #         type='list', options=self._get_argument_spec())}
+        # else:   # for Monitor API call (not CMDB API call), not need to verify with schema
+        #     if self._list_identifier:
+        #         self._argument_spec = {self._list_identifier: dict(
+        #             type='list', options=None)}
+        #     else:   # Some Monitor API call don't even have list_identifier
+        #         self._argument_spec = {}
+        # self._argument_spec.update(fortios_api_argument_spec)
+
+        # self._module = AnsibleModule(self._argument_spec, supports_check_mode=True)
         self._update_config = self._module.params.get(self._list_identifier) or []
         self._print_current_config = self._module.params.get('print_current_config')
         self._full_config = self._module.params.get('full_config')
         self._delete_objects = self._module.params.get('delete_objects')
         self._check_mode = self._module.check_mode or self._print_current_config
 
-    def perform_action_on_endpoint(self, method="post", changed=False, api_request_data=None):   # for FortiOS REST Monitor API
-        response = self._create_raw_data(path=self._endpoint, data=api_request_data)
+    def perform_action_on_endpoint(self, method="post", changed=False, api_request_data=None, timeout=None):   # for FortiOS REST Monitor API
+        response = self._create_raw_data(path=self._endpoint, data=api_request_data, timeout=timeout)
         failures = {}
         if response.get('http_status'):
             if response['http_status'] != 200:
@@ -398,6 +435,8 @@ class API(object):
             self._logout()
         except AttributeError:
             pass
+        except: # FAILED! => {"changed": false, "module_stderr": "Exception SystemExit: SystemExit(1,) in <bound method API.__del__ of <ansible.module_utils.fortios_api.API object at 0x7f0e272853d0>> ignored\n",
+            pass  # I don't really care if logout failed at this point
 
     def __exit__(self, *args):
         pass
@@ -436,11 +475,11 @@ class API(object):
                              verify=self._verify, proxies=self.proxies, params=params, json={'json': data})
 
     @connection_handler
-    def _post_raw_data(self, path, api='v2', params=None, data=None):
+    def _post_raw_data(self, path, api='v2', params=None, data=None, timeout=None):
         if isinstance(path, list):
             path = '/'.join(path) + '/'
         return requests.post(self._ip + '/api/' + api + '/' + path, headers=self.header, cookies=self.cookies,
-                             verify=self._verify, proxies=self.proxies, params=params, data=data)
+                             verify=self._verify, proxies=self.proxies, params=params, data=data, timeout=timeout)
 
     @connection_handler
     def _delete(self, path, api='v2', params=None, data=None):
@@ -467,8 +506,8 @@ class API(object):
         return self._post(path, api=api, params=self._build_params(params), data=data).json()
 
     @return_handler
-    def _create_raw_data(self, path, api='v2', params=None, data=None):
-        return self._post_raw_data(path, api=api, params=self._build_params(params), data=data).json()
+    def _create_raw_data(self, path, api='v2', params=None, data=None, timeout=None):
+        return self._post_raw_data(path, api=api, params=self._build_params(params), data=data, timeout=timeout).json()
 
     @return_handler
     def _remove(self, path, api='v2', params=None, data=None):
@@ -660,6 +699,8 @@ class API(object):
         for cookie in self.cookies:
             if cookie.name == "ccsrftoken":
                 csrftoken = cookie.value[1:-1]
+                if len(cookie.value) < 24:
+                    return None
                 return {"X-CSRFTOKEN": csrftoken}
 
     def _build_target_ip(self):
@@ -743,7 +784,7 @@ class API(object):
                                    proposed=self._update_config, end_state=self._fortigate_current_config)
         except AttributeError:
             local_module = AnsibleModule(
-                {}, bypass_checks=True, check_invalid_arguments=False, supports_check_mode=True)
+                {}, bypass_checks=True, supports_check_mode=True)
             local_module.fail_json(msg=msg, existing=self._fortigate_original_config,
                                    proposed='NA', end_state=self._fortigate_current_config)
 
