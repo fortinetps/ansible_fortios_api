@@ -149,12 +149,43 @@ class API(object):
 
         self._ip = self._build_target_ip()
 
+        response = self._login()
+        self.cookies = response.cookies
+        self.header = self._set_csrf_header()
+
+        if "loginpwd_change" in response.text:
+            self.fail(
+                "Authentication succeed. But password changed is required.")
+        if not self.header:
+            self.fail(
+                "Authentication with FortiOS device failed. Check your username/password.")
+        if not response.cookies:
+            self.fail(
+                "Authentication failed. Authentication attempts likely blocked temporarily.")
+        if "just_logged_in" in response.cookies:
+            self.fail(
+                "Authentication with FortiOS device failed. Check your username/password.")
+
         self._minimum_object_params = self._params.get('default_object', [])
         if self._endpoint.startswith('cmdb'):
             self._default_object_configuration = self._get_default_object()
         self._object_identifier = self._api_info.get('object_identifier')
         self._permanent_object_ids = self._get_permanent_object_identifiers()
         self._ignore_object_ids = self._get_ignore_object_identifiers()
+
+        self.http_status_codes = {
+            200: "Request Successful.",
+            400: "Request cannot be processed by API.",
+            401: "Login unsuccessful.",
+            403: "Account doesn't have access permissions.",
+            404: "Unable to find specified resource.",
+            405: "HTTP method not allowed for this resource.",
+            413: "Request can't be processed because entity is too large.",
+            424: "Failed dependency - one of: duplicate resource, missing required parameter, "
+                 "missing required attribute, or invalid attribute value.",
+            500: "Internal server error.",
+            501: "Not Implemented. Check that your endpoint is correct."
+        }
 
         self._object_map = []
         self._used_object_ids = []
@@ -175,64 +206,6 @@ class API(object):
         self._argument_spec.update(fortios_api_argument_spec)
 
         self._module = AnsibleModule(self._argument_spec, supports_check_mode=True)
-
-        response = self._login()
-        self.cookies = response.cookies
-        self.header = self._set_csrf_header()
-
-        if "loginpwd_change" in response.text:
-            self.fail(
-                "Authentication succeed. But password changed is required.")
-        if not self.header:
-            self.fail(
-                "Authentication with FortiOS device failed. Check your username/password.")
-        if not response.cookies:
-            self.fail(
-                "Authentication failed. Authentication attempts likely blocked temporarily.")
-        if "just_logged_in" in response.cookies:
-            self.fail(
-                "Authentication with FortiOS device failed. Check your username/password.")
-
-        # self._minimum_object_params = self._params.get('default_object', [])
-        # if self._endpoint.startswith('cmdb'):
-        #     self._default_object_configuration = self._get_default_object()
-        # self._object_identifier = self._api_info.get('object_identifier')
-        # self._permanent_object_ids = self._get_permanent_object_identifiers()
-        # self._ignore_object_ids = self._get_ignore_object_identifiers()
-
-        self.http_status_codes = {
-            200: "Request Successful.",
-            400: "Request cannot be processed by API.",
-            401: "Login unsuccessful.",
-            403: "Account doesn't have access permissions.",
-            404: "Unable to find specified resource.",
-            405: "HTTP method not allowed for this resource.",
-            413: "Request can't be processed because entity is too large.",
-            424: "Failed dependency - one of: duplicate resource, missing required parameter, "
-                 "missing required attribute, or invalid attribute value.",
-            500: "Internal server error.",
-            501: "Not Implemented. Check that your endpoint is correct."
-        }
-
-        # self._object_map = []
-        # self._used_object_ids = []
-        # self._existing_object_ids = []
-        # self._object_ids_to_update = []
-        # self._permanent_object_ids_to_reset = []
-
-        # self._list_identifier = self._api_info['list_identifier']
-        # if self._endpoint.startswith('cmdb'):
-        #     self._argument_spec = {self._list_identifier: dict(
-        #         type='list', options=self._get_argument_spec())}
-        # else:   # for Monitor API call (not CMDB API call), not need to verify with schema
-        #     if self._list_identifier:
-        #         self._argument_spec = {self._list_identifier: dict(
-        #             type='list', options=None)}
-        #     else:   # Some Monitor API call don't even have list_identifier
-        #         self._argument_spec = {}
-        # self._argument_spec.update(fortios_api_argument_spec)
-
-        # self._module = AnsibleModule(self._argument_spec, supports_check_mode=True)
         self._update_config = self._module.params.get(self._list_identifier) or []
         self._print_current_config = self._module.params.get('print_current_config')
         self._full_config = self._module.params.get('full_config')
