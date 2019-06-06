@@ -1,0 +1,22 @@
+---
+- name: test fortios_api_system_firmware_upgrade
+  hosts: localhost
+  connection: local
+  gather_facts: False
+
+  tasks:
+  - name: FortiGate Firmware Upgrade
+    fortios_api_system_firmware_upgrade:
+      conn_params:
+        fortigate_ip: "192.168.210.11"
+        fortigate_username: admin
+        fortigate_password: fortinet2
+        verify: False
+      print_current_config: False
+      firmware:
+        filename: "./firmware/FGT_VM64_KVM-v6-build0163-FORTINET.out"
+    
+    register: fortios_api_system_firmware_upgrade_return
+
+  - debug:
+      msg: "{{ fortios_api_system_firmware_upgrade_return }}"

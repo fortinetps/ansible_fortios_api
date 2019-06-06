@@ -88,7 +88,7 @@ def connection_handler(func):
             except ConnectionError as e:
                 try:
                     api.fail("Failed to login to endpoint %s with status %s" % (
-                        api._endpoint, api.response.status_code))
+                       api._endpoint, api.response.status_code))
                 except AttributeError:
                     api._module = AnsibleModule(
                         {}, bypass_checks=True)
@@ -757,7 +757,7 @@ class API(object):
                                    proposed=self._update_config, end_state=self._fortigate_current_config)
         except AttributeError:
             local_module = AnsibleModule(
-                {}, bypass_checks=True, supports_check_mode=True)
+                {}, bypass_checks=True, supports_check_mode=True, check_invalid_arguments=False)
             local_module.fail_json(msg=msg, existing=self._fortigate_original_config,
                                    proposed='NA', end_state=self._fortigate_current_config)
 
