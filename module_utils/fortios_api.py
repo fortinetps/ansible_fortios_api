@@ -46,16 +46,13 @@ except ImportError:
 
 
 fortios_api_argument_spec = dict(
-    conn_params=dict(
-        params=dict(
-            fortigate_ip=dict(required=True),
-            fortigate_username=dict(type='str', required=True),
-            fortigate_password=dict(type='str', required=True, no_log=True), # this no_log doesn't work, most likely because it is nested, and bug in Ansible
-            port=dict(type='int'),
-            disable_warnings=dict(type='bool', default=False),
-            ssh_keyfile=dict(type='path'),
-            verify=dict(type='bool', default=True),
-        ), type='dict', no_log=True), # add this no_log to hide fortigate_password for now
+    fortigate_ip=dict(required=True),
+    fortigate_username=dict(type='str', required=True),
+    fortigate_password=dict(type='str', required=True, no_log=True), # this no_log doesn't work, most likely because it is nested, and bug in Ansible
+    port=dict(type='int'),
+    disable_warnings=dict(type='bool', default=False),
+    ssh_keyfile=dict(type='path'),
+    verify=dict(type='bool', default=True),
     vdom=dict(type='str', default="root"),
     print_current_config=dict(type='bool'),
     permanent_objects=dict(type='list'),
@@ -141,11 +138,11 @@ class API(object):
         else:
             self._endpoint = self._api_info["endpoint"]
 
-        if self._params['conn_params'].get('disable_warnings', False):
+        if self._params.get('disable_warnings', False):
             requests.packages.urllib3.disable_warnings()
-        self._verify = self._params['conn_params'].get('verify', True)
-        self._secure = self._params['conn_params'].get('secure', True)
-        self.proxies = self._params['conn_params'].get('proxies')
+        self._verify = self._params.get('verify', True)
+        self._secure = self._params.get('secure', True)
+        self.proxies = self._params.get('proxies')
 
         self._ip = self._build_target_ip()
 
@@ -416,8 +413,8 @@ class API(object):
 
     @connection_handler
     def _login(self):
-        data = {'username': self._params['conn_params']['fortigate_username'],
-                'secretkey': self._params['conn_params']['fortigate_password']}
+        data = {'username': self._params['fortigate_username'],
+                'secretkey': self._params['fortigate_password']}
         return requests.post(self._ip + '/logincheck', data=data, verify=self._verify, proxies=self.proxies)
 
     @connection_handler
@@ -678,12 +675,12 @@ class API(object):
 
     def _build_target_ip(self):
         if self._secure:
-            port = self._params['conn_params'].get('port', 443)
+            port = self._params.get('port', 443)
             string = 'https://'
         else:
-            port = self._params['conn_params'].get('port', 80)
+            port = self._params.get('port', 80)
             string = 'http://'
-        return "%s%s:%i" % (string, self._params['conn_params']['fortigate_ip'], port)
+        return "%s%s:%i" % (string, self._params['fortigate_ip'], port)
 
     def _process_response(self):
         success_msg = "Configuration updated."
@@ -757,7 +754,12 @@ class API(object):
                                    proposed=self._update_config, end_state=self._fortigate_current_config)
         except AttributeError:
             local_module = AnsibleModule(
-                {}, bypass_checks=True, supports_check_mode=True, check_invalid_arguments=False)
+                argument_spec = dict(
+                    fortigate_password=dict(no_log=True),
+                ),
+                bypass_checks = True, 
+                supports_check_mode = True, 
+                check_invalid_arguments = False)
             local_module.fail_json(msg=msg, existing=self._fortigate_original_config,
                                    proposed='NA', end_state=self._fortigate_current_config)
 

@@ -63,14 +63,14 @@ endpoint_information - dictionary with information about API endpoint. You will 
     list_identifier - the name of the list from which module will take objects
     object_identifier - if the list has multiple objects, module needs to know how this objects are identified in API (usually by name or id)
 print_current_config - false by default, if set to true will run module in check mode (no changes) and write a file with currect config
-conn_params - connection parameters, how to reach firewall and how to communicate with it
-    fortigate_username - username
-    fortigate_password - password
-    fortigate_ip - ip or FQDN of the firewall
-    secure - use HTTPS if true, use HTTP if false
-    port - which port to use (default to 80 or 443 depending on secure)
-    verify - verify validity of the cert if true
-    proxies - if proxy is needed, specify it in the requests format (i.e. http: socks5://127.0.0.1:9000), see module code for example
+<!-- conn_params - connection parameters, how to reach firewall and how to communicate with it -->
+fortigate_username - username
+fortigate_password - password
+fortigate_ip - ip or FQDN of the firewall
+secure - use HTTPS if true, use HTTP if false
+port - which port to use (default to 80 or 443 depending on secure)
+verify - verify validity of the cert if true
+proxies - if proxy is needed, specify it in the requests format (i.e. http: socks5://127.0.0.1:9000), see module code for example
 list_of_objects - this is the list referenced in list_identifier. Its name and content changes based on the module. Note that this value
                   must be list all of the times, even if it is a list of 1 element.
 permanent_objects - list of objects by ID that can not be deleted. Instead, when they are not present in the end state config, module will try to

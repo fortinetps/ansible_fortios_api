@@ -46,11 +46,11 @@ tags:
 - hostname
 fortios_api_firmware_upgrade:
   print_current_config: false
-  conn_params:
-    fortigate_username: admin
-    fortigate_password: test
-    fortigate_ip: 1.2.3.4
-    verify: false
+#   conn_params:
+  fortigate_username: admin
+  fortigate_password: test
+  fortigate_ip: 1.2.3.4
+  verify: false
   firmware:
   - filename: /firmware/FGT_VM64_KVM-v6-build0163-FORTINET.out
 

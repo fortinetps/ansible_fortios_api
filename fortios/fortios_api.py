@@ -57,15 +57,15 @@ EXAMPLES = '''
     list_identifier: routers
     object_identifier: seq-num
     permanent_objects:
-  conn_params:
-    fortigate_username: admin
-    fortigate_password: test
-    fortigate_ip: 1.2.3.4
-    port: 10080
-    verify: false
-    secure: false
-    proxies:
-        http: socks5://127.0.0.1:9000
+  # conn_params:
+  fortigate_username: admin
+  fortigate_password: test
+  fortigate_ip: 1.2.3.4
+  port: 10080
+  verify: false
+  secure: false
+  proxies:
+      http: socks5://127.0.0.1:9000
   routers:
   - seq-num: 1
     status: enable
@@ -157,11 +157,11 @@ EXAMPLES = '''
         object_identifier:
         permanent_objects:
       print_current_config: true
-      conn_params:
-          fortigate_ip: "{{ host }}"
-          fortigate_username: "{{ username }}"
-          fortigate_password: "{{ password }}"
-          verify: false
+      # conn_params:
+      fortigate_ip: "{{ host }}"
+      fortigate_username: "{{ username }}"
+      fortigate_password: "{{ password }}"
+      verify: false
     register: FOS_API_HA_CHECKSUMS
 
   - name: Gather system status
@@ -172,11 +172,11 @@ EXAMPLES = '''
         object_identifier:
         permanent_objects:
       print_current_config: true
-      conn_params:
-          fortigate_ip: "{{ host }}"
-          fortigate_username: "{{ username }}"
-          fortigate_password: "{{ password }}"
-          verify: false
+      # conn_params:
+      fortigate_ip: "{{ host }}"
+      fortigate_username: "{{ username }}"
+      fortigate_password: "{{ password }}"
+      verify: false
     register: FOS_SYSTEM_STATUS
 '''
 
